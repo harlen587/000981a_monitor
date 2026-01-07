@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ETF 每日持股追蹤工具 (含 Google Sheets 上傳)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+    </style>
+</head>
+<body>
+    <div class="min-h-screen flex flex-col items-center justify-start p-4 md:p-8">
+        
+        <!-- Tab Navigation -->
+        <div class="w-full max-w-4xl mb-6 bg-white rounded-xl shadow-sm p-1 flex">
+            <button onclick="switchTab('merger')" id="tab-merger" class="flex-1 py-3 px-6 rounded-lg font-bold text-sm transition-all duration-200 bg-blue-100 text-blue-700">1. 資料匯整 & 上傳</button>
+            <button onclick="switchTab('viewer')" id="tab-viewer" class="flex-1 py-3 px-6 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:bg-gray-50">2. 趨勢圖表</button>
+        </div>
+
+        <!-- APP CONTAINER -->
+        <div class="bg-white rounded-xl shadow-lg w-full max-w-4xl p-8 space-y-8 min-h-[600px]">
+            
+            <!-- SECTION 1: MERGER TOOL -->
+            <div id="section-merger" class="space-y-8">
+                <div class="text-center border-b pb-6">
+                    <h1 class="text-3xl font-bold text-gray-800 flex items-center justify-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        每日持股匯整 & 雲端上傳
+                    </h1>
+                    <p class="text-gray-500 mt-2">支援批次處理多個日報表，並可同步至 Google Sheets</p>
+                </div>
+
+                <!-- Step 1 & 2: File Selection -->
+                <div class="space-y-6">
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-gray-700">1. 選擇每日報表來源檔 (可多選)</label>
+                        <div class="relative group">
+                            <input type="file" id="sourceFile" accept=".xlsx, .xls" multiple
+                                   class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border rounded-lg p-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <p class="text-xs text-gray-400 pl-1">提示：按住 Ctrl 或 Shift 鍵可一次選擇多個檔案。</p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-gray-700 flex justify-between">
+                            <span>2. 選擇現有彙整檔 (monitor.xlsx) <span class="text-gray-400 font-normal">[選填]</span></span>
+                            <span class="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded">第一次匯整請留空</span>
+                        </label>
+                        <input type="file" id="monitorFile" accept=".xlsx, .xls" 
+                               class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 cursor-pointer border rounded-lg p-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                        <p class="text-xs text-gray-400 pl-1">系統將讀取此檔案，並將新資料加入或覆蓋舊有日期。</p>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-b pb-8">
+                    <button id="processBtn" onclick="processFiles()" 
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition duration-200 flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        執行匯整並下載 Excel
+                    </button>
+                </div>
+
+                <!-- Step 3: Google Sheets Upload (Hidden by default until processed) -->
+                <div id="uploadSection" class="hidden space-y-4 bg-green-50 p-6 rounded-xl border border-green-200">
+                    <h3 class="font-bold text-green-800 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0011.414 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd" />
+                        </svg>
+                        3. 同步至 Google Sheets (選用)
+                    </h3>
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-green-900">
+                            
+                        </label>
+                        <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/..../exec" 
+                               class="block w-full text-sm border-green-300 rounded-lg p-2.5 focus:ring-green-500 focus:border-green-500 shadow-sm"
+                               onchange="localStorage.setItem('etf_script_url', this.value)">
+                        <p class="text-xs text-green-700">https://script.google.com/macros/s/AKfycbxDHxIuDrO9e3rNUXexCfcujBm8I58AZ8N8HgGmugBqBqzSr4jluWZzDhfx7hf-4r5P/exec</p>
+                    </div>
+                    <button id="uploadBtn" onclick="uploadToGoogleSheets()" 
+                            class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-4 rounded-lg shadow transition duration-200 flex items-center justify-center gap-2">
+                        開始上傳
+                    </button>
+                </div>
+            </div>
+
+            <!-- SECTION 2: VIEWER TOOL (Unchanged) -->
+            <div id="section-viewer" class="hidden space-y-8">
+                <div class="text-center border-b pb-6">
+                    <h1 class="text-3xl font-bold text-gray-800 flex items-center justify-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                        </svg>
+                        持股趨勢監控
+                    </h1>
+                    <p class="text-gray-500 mt-2">讀取 Monitor 檔並繪製 Top 15 權重變化</p>
+                </div>
+                <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                    <label class="block text-sm font-medium text-indigo-900 mb-2">請上傳 Monitor.xlsx 檔案</label>
+                    <input type="file" id="viewerFile" accept=".xlsx, .xls" onchange="loadChartData()"
+                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer border rounded-lg p-2 bg-white border-indigo-200">
+                </div>
+                <div class="relative h-[400px] w-full bg-white border rounded-xl p-2">
+                    <canvas id="trendChart"></canvas>
+                </div>
+                <div class="space-y-2">
+                    <h3 class="font-bold text-gray-700 flex items-center gap-2">詳細數據 (顯示前 15 檔)</h3>
+                    <div class="border rounded-lg overflow-hidden bg-white shadow-sm">
+                        <div class="grid grid-cols-6 gap-2 p-3 bg-gray-100 font-bold text-xs text-gray-700 border-b">
+                            <div class="col-span-1">排名</div><div class="col-span-1">股票名稱</div><div class="col-span-4 text-right pr-4">最新權重 / 歷史趨勢</div>
+                        </div>
+                        <div id="dataTableBody" class="custom-scrollbar overflow-y-auto max-h-64 divide-y divide-gray-100">
+                            <div class="p-8 text-center text-gray-400 text-sm">請先上傳檔案以檢視數據</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs -->
+            <div id="statusArea" class="hidden rounded-lg bg-gray-50 p-4 border border-gray-200 text-sm font-mono text-gray-700 space-y-1 max-h-40 overflow-y-auto"></div>
+        </div>
+        <div class="mt-8 text-center w-full text-xs text-gray-400">資料處理完全在瀏覽器端進行。Google Sheets 上傳功能需搭配 Apps Script 使用。</div>
+    </div>
+
+    <script>
+        // --- 共用變數 ---
+        const TARGET_RANGE = { s: { c: 0, r: 20 }, e: { c: 3, r: 71 } }; // A21:D72
+        const TARGET_SHEET_NAME = "基金投資組合";
+        const OUTPUT_FILENAME = "monitor.xlsx";
+        let globalProcessedWorkbook = null; // 暫存處理好的 Workbook 供上傳使用
+        let chartInstance = null;
+
+        // --- 初始化：還原儲存的 Script URL ---
+        window.onload = function() {
+            const savedUrl = localStorage.getItem('etf_script_url');
+            if (savedUrl) document.getElementById('scriptUrl').value = savedUrl;
+        }
+
+        // --- Logger ---
+        function log(message, type = 'info') {
+            const statusArea = document.getElementById('statusArea');
+            statusArea.classList.remove('hidden');
+            const div = document.createElement('div');
+            div.textContent = `> ${message}`;
+            if (type === 'error') div.className = 'text-red-600 font-bold';
+            if (type === 'success') div.className = 'text-green-600 font-bold';
+            statusArea.appendChild(div);
+            statusArea.scrollTop = statusArea.scrollHeight;
+        }
+
+        // --- Tab Switcher ---
+        function switchTab(tab) {
+            const mergerSec = document.getElementById('section-merger');
+            const viewerSec = document.getElementById('section-viewer');
+            const mergerBtn = document.getElementById('tab-merger');
+            const viewerBtn = document.getElementById('tab-viewer');
+            
+            if (tab === 'merger') {
+                mergerSec.classList.remove('hidden');
+                viewerSec.classList.add('hidden');
+                mergerBtn.className = "flex-1 py-3 px-6 rounded-lg font-bold text-sm bg-blue-100 text-blue-700";
+                viewerBtn.className = "flex-1 py-3 px-6 rounded-lg font-bold text-sm text-gray-500 hover:bg-gray-50";
+            } else {
+                mergerSec.classList.add('hidden');
+                viewerSec.classList.remove('hidden');
+                viewerBtn.className = "flex-1 py-3 px-6 rounded-lg font-bold text-sm bg-indigo-100 text-indigo-700";
+                mergerBtn.className = "flex-1 py-3 px-6 rounded-lg font-bold text-sm text-gray-500 hover:bg-gray-50";
+            }
+        }
+
+        async function readExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try { resolve(XLSX.read(new Uint8Array(e.target.result), { type: 'array' })); } 
+                    catch (err) { reject(err); }
+                };
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function extractDateFromFilename(filename) {
+            const match = filename.match(/(\d{8})/);
+            if (match) return match[1];
+            return new Date().toISOString().split('T')[0].replace(/-/g, '');
+        }
+
+        // --- PROCESS FILES (Merge) ---
+        async function processFiles() {
+            const sourceInput = document.getElementById('sourceFile');
+            const monitorInput = document.getElementById('monitorFile');
+            const btn = document.getElementById('processBtn');
+            const uploadSection = document.getElementById('uploadSection');
+
+            document.getElementById('statusArea').innerHTML = '';
+            uploadSection.classList.add('hidden'); // Reset upload section
+            
+            if (!sourceInput.files.length) { alert('請先選擇「每日報表來源檔」！'); return; }
+
+            try {
+                btn.disabled = true;
+                btn.textContent = '處理中...';
+                log('開始處理匯整...');
+
+                let monitorWorkbook;
+                let outputFilename = OUTPUT_FILENAME;
+
+                if (monitorInput.files.length > 0) {
+                    outputFilename = monitorInput.files[0].name;
+                    monitorWorkbook = await readExcelFile(monitorInput.files[0]);
+                } else {
+                    monitorWorkbook = XLSX.utils.book_new();
+                }
+
+                const files = Array.from(sourceInput.files).sort((a, b) => a.name.localeCompare(b.name));
+                let successCount = 0;
+
+                for (let file of files) {
+                    try {
+                        const sheetNameDate = extractDateFromFilename(file.name);
+                        const sourceWorkbook = await readExcelFile(file);
+                        let targetSheet = sourceWorkbook.Sheets[TARGET_SHEET_NAME] || sourceWorkbook.Sheets[sourceWorkbook.SheetNames[0]];
+                        
+                        const extractedData = XLSX.utils.sheet_to_json(targetSheet, { header: 1, range: TARGET_RANGE });
+                        if (extractedData.length === 0) continue;
+
+                        if (monitorWorkbook.SheetNames.includes(sheetNameDate)) {
+                            monitorWorkbook.SheetNames.splice(monitorWorkbook.SheetNames.indexOf(sheetNameDate), 1);
+                            delete monitorWorkbook.Sheets[sheetNameDate];
+                        }
+                        XLSX.utils.book_append_sheet(monitorWorkbook, XLSX.utils.aoa_to_sheet(extractedData), sheetNameDate);
+                        successCount++;
+                        log(`已處理: ${sheetNameDate}`);
+                    } catch (err) {
+                        log(`跳過檔案 ${file.name}: ${err.message}`, 'error');
+                    }
+                }
+
+                if (successCount > 0) {
+                    XLSX.writeFile(monitorWorkbook, outputFilename);
+                    globalProcessedWorkbook = monitorWorkbook; // Save for upload
+                    uploadSection.classList.remove('hidden'); // Show upload section
+                    log(`匯整完成，已下載 ${outputFilename}`, 'success');
+                } else {
+                    alert('沒有任何有效數據被處理。');
+                }
+
+            } catch (error) {
+                console.error(error);
+                log(`錯誤: ${error.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    執行匯整並下載 Excel
+                `;
+            }
+        }
+
+        // --- UPLOAD TO GOOGLE SHEETS ---
+        async function uploadToGoogleSheets() {
+            const url = document.getElementById('scriptUrl').value.trim();
+            const btn = document.getElementById('uploadBtn');
+
+            if (!url) { alert('請先輸入 Google Apps Script 網址！'); return; }
+            if (!globalProcessedWorkbook) { alert('請先執行匯整步驟！'); return; }
+
+            try {
+                btn.disabled = true;
+                btn.textContent = '上傳中... (請勿關閉)';
+                
+                // 取得所有 Sheets 數據
+                const sheetsData = [];
+                globalProcessedWorkbook.SheetNames.forEach(name => {
+                    const sheet = globalProcessedWorkbook.Sheets[name];
+                    const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                    sheetsData.push({ name: name, data: json });
+                });
+
+                log(`準備上傳 ${sheetsData.length} 個分頁至 Google Sheets...`);
+                
+                for (let i = 0; i < sheetsData.length; i++) {
+                    const sheetPayload = sheetsData[i];
+                    log(`正在傳送分頁 [${i+1}/${sheetsData.length}]: ${sheetPayload.name}...`);
+                    
+                    await fetch(url, {
+                        method: 'POST',
+                        mode: 'no-cors', 
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(sheetPayload)
+                    });
+                    
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+
+                log('所有請求已發送！請至您的 Google Sheet 確認資料是否出現。', 'success');
+                alert('上傳指令已發送完畢！\n\n注意：由於跨網域安全限制，系統無法確認 Google 端是否成功接收。\n請直接查看您的 Google Sheet 確認結果。');
+
+            } catch (error) {
+                console.error(error);
+                log(`上傳發生錯誤: ${error.message}`, 'error');
+                alert(`上傳錯誤: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '開始上傳';
+            }
+        }
+
+        // --- VIEWER CHART & TABLE (Copied logic from previous version) ---
+        async function loadChartData() {
+            const fileInput = document.getElementById('viewerFile');
+            if (!fileInput.files.length) return;
+            document.getElementById('statusArea').innerHTML = '';
+            
+            try {
+                const workbook = await readExcelFile(fileInput.files[0]);
+                let sheets = workbook.SheetNames.sort();
+                if (sheets.length === 0) return;
+
+                const latestSheet = workbook.Sheets[sheets[sheets.length - 1]];
+                const latestDataRaw = XLSX.utils.sheet_to_json(latestSheet, { header: 1 });
+                
+                let startIdx = (latestDataRaw.length > 0 && typeof latestDataRaw[0][1] === 'string' && latestDataRaw[0][1].includes('名稱')) ? 1 : 0;
+                let targetStocks = [];
+                for (let i = startIdx; i < startIdx + 15; i++) {
+                    if (latestDataRaw[i] && latestDataRaw[i][1]) targetStocks.push(latestDataRaw[i][1]);
+                }
+
+                const datasets = {};
+                targetStocks.forEach(s => datasets[s] = []);
+
+                sheets.forEach(sheetName => {
+                    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
+                    const map = {};
+                    rows.forEach(row => {
+                        if (row.length > 3) {
+                            let v = row[3];
+                            if (typeof v === 'string') v = parseFloat(v.replace(/[%|,]/g, ''));
+                            if (row[1] && !isNaN(v)) map[row[1]] = v;
+                        }
+                    });
+                    targetStocks.forEach(s => datasets[s].push(map[s] !== undefined ? map[s] : null));
+                });
+
+                drawChart(sheets, targetStocks, datasets);
+                renderTable(sheets, targetStocks, datasets);
+            } catch (err) {
+                console.error(err);
+                log(`解析錯誤: ${err.message}`, 'error');
+            }
+        }
+
+        function drawChart(labels, stocks, dataMap) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+            const colors = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#881337', '#1e293b', '#64748b'];
+            
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: stocks.map((s, i) => ({
+                        label: s, data: dataMap[s], borderColor: colors[i % colors.length], backgroundColor: colors[i % colors.length], borderWidth: 2, tension: 0.1, pointRadius: 3, spanGaps: true
+                    }))
+                },
+                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'right', labels: { boxWidth: 10 } } } }
+            });
+        }
+
+        function renderTable(dates, stocks, dataMap) {
+            const container = document.getElementById('dataTableBody');
+            container.innerHTML = '';
+            stocks.forEach((s, i) => {
+                const vals = dataMap[s];
+                const last = vals[vals.length - 1];
+                const row = document.createElement('div');
+                row.className = "grid grid-cols-6 gap-2 p-3 text-sm hover:bg-gray-50 items-center";
+                row.innerHTML = `<div class="col-span-1 font-bold text-gray-500">#${i+1}</div><div class="col-span-1 font-medium truncate" title="${s}">${s}</div><div class="col-span-4 flex justify-end gap-4"><span class="font-bold text-indigo-600">${last!=null?last.toFixed(2)+'%':'-'}</span><div class="hidden md:flex gap-1">${vals.slice(-5).map(v=>`<span class="text-xs px-1.5 rounded ${v>0?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}">${v!=null?v.toFixed(1):'-'}</span>`).join('')}</div></div>`;
+                container.appendChild(row);
+            });
+        }
+    </script>
+</body>
+</html>
