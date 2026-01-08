@@ -104,7 +104,7 @@
                         </svg>
                         持股趨勢監控
                     </h1>
-                    <p class="text-gray-500 mt-2">讀取 Monitor 檔並繪製 Top 15 權重變化</p>
+                    <p class="text-gray-500 mt-2">讀取 Monitor 檔並繪製 Top 25 權重變化</p>
                 </div>
                 <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
                     <label class="block text-sm font-medium text-indigo-900 mb-2">請上傳 Monitor.xlsx 檔案</label>
@@ -115,7 +115,7 @@
                     <canvas id="trendChart"></canvas>
                 </div>
                 <div class="space-y-2">
-                    <h3 class="font-bold text-gray-700 flex items-center gap-2">詳細數據 (顯示前 15 檔)</h3>
+                    <h3 class="font-bold text-gray-700 flex items-center gap-2">詳細數據 (顯示前 25 檔)</h3>
                     <div class="border rounded-lg overflow-hidden bg-white shadow-sm">
                         <div class="grid grid-cols-6 gap-2 p-3 bg-gray-100 font-bold text-xs text-gray-700 border-b">
                             <div class="col-span-1">排名</div><div class="col-span-1">股票名稱</div><div class="col-span-4 text-right pr-4">最新權重 / 歷史趨勢</div>
@@ -336,7 +336,7 @@
                 
                 let startIdx = (latestDataRaw.length > 0 && typeof latestDataRaw[0][1] === 'string' && latestDataRaw[0][1].includes('名稱')) ? 1 : 0;
                 let targetStocks = [];
-                for (let i = startIdx; i < startIdx + 15; i++) {
+                for (let i = startIdx; i < startIdx + 25; i++) {
                     if (latestDataRaw[i] && latestDataRaw[i][1]) targetStocks.push(latestDataRaw[i][1]);
                 }
 
