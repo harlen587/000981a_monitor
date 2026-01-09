@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ETF 每日持股追蹤工具 (含 Google Sheets 上傳)</title>
+    <title>ETF 每日持股追蹤工具 v3 (含新入榜標記)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -13,6 +13,11 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        
+        /* Sort Icons */
+        .sort-icon::after { content: ' ↕'; opacity: 0.3; }
+        .sort-asc::after { content: ' ↑'; opacity: 1; }
+        .sort-desc::after { content: ' ↓'; opacity: 1; }
     </style>
 </head>
 <body>
@@ -36,7 +41,7 @@
                         </svg>
                         每日持股匯整 & 雲端上傳
                     </h1>
-                    <p class="text-gray-500 mt-2">支援批次處理多個日報表，並可同步至 Google Sheets</p> <a target="_blank" href="https://www.ezmoney.com.tw/ETF/Fund/Info?fundCode=49YTW">先到這邊下載</a>
+                    <p class="text-gray-500 mt-2">支援批次處理多個日報表，並可同步至 Google Sheets</p>
                 </div>
 
                 <!-- Step 1 & 2: File Selection -->
@@ -71,7 +76,7 @@
                     </button>
                 </div>
 
-                <!-- Step 3: Google Sheets Upload (Hidden by default until processed) -->
+                <!-- Step 3: Google Sheets Upload -->
                 <div id="uploadSection" class="hidden space-y-4 bg-green-50 p-6 rounded-xl border border-green-200">
                     <h3 class="font-bold text-green-800 flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -80,13 +85,10 @@
                         3. 同步至 Google Sheets (選用)
                     </h3>
                     <div class="space-y-2">
-                        <label class="block text-sm font-medium text-green-900">
-                            
-                        </label>
                         <input type="text" id="scriptUrl" placeholder="https://script.google.com/macros/s/..../exec" 
                                class="block w-full text-sm border-green-300 rounded-lg p-2.5 focus:ring-green-500 focus:border-green-500 shadow-sm"
                                onchange="localStorage.setItem('etf_script_url', this.value)">
-                        <p class="text-xs text-green-700">https://script.google.com/macros/s/AKfycbxDHxIuDrO9e3rNUXexCfcujBm8I58AZ8N8HgGmugBqBqzSr4jluWZzDhfx7hf-4r5P/exec</p>
+                        <p class="text-xs text-green-700">請貼上您的 Google Apps Script 網址</p>
                     </div>
                     <button id="uploadBtn" onclick="uploadToGoogleSheets()" 
                             class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-4 rounded-lg shadow transition duration-200 flex items-center justify-center gap-2">
@@ -95,7 +97,7 @@
                 </div>
             </div>
 
-            <!-- SECTION 2: VIEWER TOOL (Unchanged) -->
+            <!-- SECTION 2: VIEWER TOOL -->
             <div id="section-viewer" class="hidden space-y-8">
                 <div class="text-center border-b pb-6">
                     <h1 class="text-3xl font-bold text-gray-800 flex items-center justify-center gap-3">
@@ -104,22 +106,32 @@
                         </svg>
                         持股趨勢監控
                     </h1>
-                    <p class="text-gray-500 mt-2">讀取 Monitor 檔並繪製 Top 25 權重變化</p>
+                    <p class="text-gray-500 mt-2">讀取 Monitor 檔並繪製 權重變化</p>
                 </div>
                 <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
                     <label class="block text-sm font-medium text-indigo-900 mb-2">請上傳 Monitor.xlsx 檔案</label>
                     <input type="file" id="viewerFile" accept=".xlsx, .xls" onchange="loadChartData()"
                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer border rounded-lg p-2 bg-white border-indigo-200">
                 </div>
+                
+                <!-- Chart Container -->
                 <div class="relative h-[400px] w-full bg-white border rounded-xl p-2">
                     <canvas id="trendChart"></canvas>
                 </div>
+
+                <!-- Table Container -->
                 <div class="space-y-2">
-                    <h3 class="font-bold text-gray-700 flex items-center gap-2">詳細數據 (顯示前 25 檔)</h3>
+                    <h3 class="font-bold text-gray-700 flex items-center gap-2">詳細數據</h3>
+                    <p class="text-xs text-gray-400">點擊欄位標題可進行排序</p>
                     <div class="border rounded-lg overflow-hidden bg-white shadow-sm">
-                        <div class="grid grid-cols-6 gap-2 p-3 bg-gray-100 font-bold text-xs text-gray-700 border-b">
-                            <div class="col-span-1">排名</div><div class="col-span-1">股票名稱</div><div class="col-span-4 text-right pr-4">最新權重 / 歷史趨勢</div>
+                        <!-- Table Header -->
+                        <div class="grid grid-cols-10 gap-2 p-3 bg-gray-100 font-bold text-xs text-gray-700 border-b items-center select-none">
+                            <div class="col-span-1 cursor-pointer hover:text-indigo-600 sort-icon" id="header-rank" onclick="handleSort('rank')">排名</div>
+                            <div class="col-span-2 cursor-pointer hover:text-indigo-600 sort-icon" id="header-name" onclick="handleSort('name')">股票名稱</div>
+                            <div class="col-span-2 cursor-pointer hover:text-indigo-600 sort-icon text-center" id="header-trend" onclick="handleSort('trendVal')">趨勢訊號</div>
+                            <div class="col-span-5 text-right pr-4 cursor-pointer hover:text-indigo-600 sort-icon" id="header-weight" onclick="handleSort('weight')">最新權重 / 歷史趨勢</div>
                         </div>
+                        <!-- Table Body -->
                         <div id="dataTableBody" class="custom-scrollbar overflow-y-auto max-h-64 divide-y divide-gray-100">
                             <div class="p-8 text-center text-gray-400 text-sm">請先上傳檔案以檢視數據</div>
                         </div>
@@ -138,10 +150,13 @@
         const TARGET_RANGE = { s: { c: 0, r: 20 }, e: { c: 3, r: 71 } }; // A21:D72
         const TARGET_SHEET_NAME = "基金投資組合";
         const OUTPUT_FILENAME = "monitor.xlsx";
-        let globalProcessedWorkbook = null; // 暫存處理好的 Workbook 供上傳使用
+        let globalProcessedWorkbook = null; 
         let chartInstance = null;
 
-        // --- 初始化：還原儲存的 Script URL ---
+        // --- Table Data & Sorting State ---
+        let tableData = [];
+        let sortState = { key: 'rank', dir: 'asc' }; // dir: 'asc' or 'desc'
+
         window.onload = function() {
             const savedUrl = localStorage.getItem('etf_script_url');
             if (savedUrl) document.getElementById('scriptUrl').value = savedUrl;
@@ -179,6 +194,7 @@
             }
         }
 
+        // --- File Reading Helpers ---
         async function readExcelFile(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -197,7 +213,7 @@
             return new Date().toISOString().split('T')[0].replace(/-/g, '');
         }
 
-        // --- PROCESS FILES (Merge) ---
+        // --- CORE FUNCTION 1: Process Files (Merge) ---
         async function processFiles() {
             const sourceInput = document.getElementById('sourceFile');
             const monitorInput = document.getElementById('monitorFile');
@@ -205,7 +221,7 @@
             const uploadSection = document.getElementById('uploadSection');
 
             document.getElementById('statusArea').innerHTML = '';
-            uploadSection.classList.add('hidden'); // Reset upload section
+            uploadSection.classList.add('hidden'); 
             
             if (!sourceInput.files.length) { alert('請先選擇「每日報表來源檔」！'); return; }
 
@@ -250,8 +266,8 @@
 
                 if (successCount > 0) {
                     XLSX.writeFile(monitorWorkbook, outputFilename);
-                    globalProcessedWorkbook = monitorWorkbook; // Save for upload
-                    uploadSection.classList.remove('hidden'); // Show upload section
+                    globalProcessedWorkbook = monitorWorkbook; 
+                    uploadSection.classList.remove('hidden'); 
                     log(`匯整完成，已下載 ${outputFilename}`, 'success');
                 } else {
                     alert('沒有任何有效數據被處理。');
@@ -271,7 +287,7 @@
             }
         }
 
-        // --- UPLOAD TO GOOGLE SHEETS ---
+        // --- CORE FUNCTION 2: Upload to Google Sheets ---
         async function uploadToGoogleSheets() {
             const url = document.getElementById('scriptUrl').value.trim();
             const btn = document.getElementById('uploadBtn');
@@ -283,7 +299,6 @@
                 btn.disabled = true;
                 btn.textContent = '上傳中... (請勿關閉)';
                 
-                // 取得所有 Sheets 數據
                 const sheetsData = [];
                 globalProcessedWorkbook.SheetNames.forEach(name => {
                     const sheet = globalProcessedWorkbook.Sheets[name];
@@ -320,7 +335,7 @@
             }
         }
 
-        // --- VIEWER CHART & TABLE (Copied logic from previous version) ---
+        // --- CORE FUNCTION 3: Viewer Chart & Table ---
         async function loadChartData() {
             const fileInput = document.getElementById('viewerFile');
             if (!fileInput.files.length) return;
@@ -336,7 +351,7 @@
                 
                 let startIdx = (latestDataRaw.length > 0 && typeof latestDataRaw[0][1] === 'string' && latestDataRaw[0][1].includes('名稱')) ? 1 : 0;
                 let targetStocks = [];
-                for (let i = startIdx; i < startIdx + 25; i++) {
+                for (let i = startIdx; i < startIdx + 50; i++) {
                     if (latestDataRaw[i] && latestDataRaw[i][1]) targetStocks.push(latestDataRaw[i][1]);
                 }
 
@@ -357,11 +372,130 @@
                 });
 
                 drawChart(sheets, targetStocks, datasets);
-                renderTable(sheets, targetStocks, datasets);
+                
+                // --- Build Table Data ---
+                tableData = targetStocks.map((s, i) => {
+                    const vals = datasets[s];
+                    const lastVal = vals[vals.length - 1];
+                    const trend = analyzeTrend(vals); // returns { text, class, val }
+                    return {
+                        rank: i + 1,
+                        name: s,
+                        weight: lastVal,
+                        history: vals,
+                        trendText: trend.text,
+                        trendClass: trend.class,
+                        trendVal: trend.val 
+                    };
+                });
+
+                // Initial sort by rank
+                handleSort('rank'); 
+
             } catch (err) {
                 console.error(err);
                 log(`解析錯誤: ${err.message}`, 'error');
             }
+        }
+
+        // --- Logic to detect Trends & New Entries ---
+        function analyzeTrend(values) {
+            const len = values.length;
+            // 1. 基本檢核：若資料不足 2 天，無法判斷「新入榜」，顯示 -
+            if (len < 2) return { text: '-', class: 'text-gray-300', val: 0 };
+
+            const cur = values[len - 1];
+            const prev = values[len - 2];
+            const prev2 = len >= 3 ? values[len - 3] : null;
+
+            // 定義有效值：非 null 且大於 0
+            const isCurValid = cur !== null && cur > 0;
+            const isPrevValid = prev !== null && prev > 0;
+
+            // 2. 判斷「新入榜」：今天有值，昨天無值 (null 或 0)
+            if (isCurValid && !isPrevValid) {
+                return { text: '新入榜', class: 'bg-purple-100 text-purple-700 border-purple-200 border', val: 2 };
+            }
+
+            // 3. 判斷「連漲/連跌」：需連續 3 天有效值
+            // 嚴格定義：Day(T) > Day(T-1) > Day(T-2)
+            if (len >= 3 && isCurValid && isPrevValid && prev2 !== null && prev2 > 0) {
+                if (cur > prev && prev > prev2) {
+                    return { text: '連漲 3 天', class: 'bg-red-100 text-red-700 border-red-200 border', val: 1 };
+                }
+                if (cur < prev && prev < prev2) {
+                    return { text: '連跌 3 天', class: 'bg-green-100 text-green-700 border-green-200 border', val: -1 };
+                }
+            }
+            
+            return { text: '-', class: 'text-gray-300', val: 0 };
+        }
+
+        function handleSort(key) {
+            // Toggle direction
+            if (sortState.key === key) {
+                sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortState.key = key;
+                sortState.dir = (key === 'weight' || key === 'trendVal') ? 'desc' : 'asc';
+            }
+
+            // UI Updates
+            document.querySelectorAll('.sort-icon').forEach(el => {
+                el.classList.remove('sort-asc', 'sort-desc');
+                el.classList.add('opacity-70');
+            });
+            const activeHeader = document.querySelector(`#header-${key === 'trendVal' ? 'trend' : key}`);
+            if (activeHeader) {
+                activeHeader.classList.remove('opacity-70');
+                activeHeader.classList.add(sortState.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+            }
+
+            // Sort logic
+            tableData.sort((a, b) => {
+                let valA = a[key];
+                let valB = b[key];
+                
+                if (valA == null) valA = -Infinity;
+                if (valB == null) valB = -Infinity;
+
+                if (valA < valB) return sortState.dir === 'asc' ? -1 : 1;
+                if (valA > valB) return sortState.dir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            renderTable();
+        }
+
+        function renderTable() {
+            const container = document.getElementById('dataTableBody');
+            container.innerHTML = '';
+            
+            tableData.forEach((rowObj) => {
+                const s = rowObj.name;
+                const vals = rowObj.history;
+                const last = rowObj.weight;
+                
+                const row = document.createElement('div');
+                row.className = "grid grid-cols-10 gap-2 p-3 text-sm hover:bg-gray-50 items-center border-b border-gray-100 last:border-0";
+                
+                row.innerHTML = `
+                    <div class="col-span-1 font-bold text-gray-500 pl-2">#${rowObj.rank}</div>
+                    <div class="col-span-2 font-medium truncate" title="${s}">${s}</div>
+                    <div class="col-span-2 text-center">
+                        <span class="text-xs px-2 py-1 rounded-full font-bold ${rowObj.trendClass}">
+                            ${rowObj.trendText}
+                        </span>
+                    </div>
+                    <div class="col-span-5 flex justify-end gap-4 items-center">
+                        <span class="font-bold text-indigo-600 w-16 text-right">${last!=null?last.toFixed(2)+'%':'-'}</span>
+                        <div class="hidden md:flex gap-1 w-32 justify-end">
+                            ${vals.slice(-5).map(v=>`<span class="text-xs px-1.5 rounded ${v>0?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}">${v!=null?v.toFixed(1):'-'}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
         }
 
         function drawChart(labels, stocks, dataMap) {
@@ -378,19 +512,6 @@
                     }))
                 },
                 options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'right', labels: { boxWidth: 10 } } } }
-            });
-        }
-
-        function renderTable(dates, stocks, dataMap) {
-            const container = document.getElementById('dataTableBody');
-            container.innerHTML = '';
-            stocks.forEach((s, i) => {
-                const vals = dataMap[s];
-                const last = vals[vals.length - 1];
-                const row = document.createElement('div');
-                row.className = "grid grid-cols-6 gap-2 p-3 text-sm hover:bg-gray-50 items-center";
-                row.innerHTML = `<div class="col-span-1 font-bold text-gray-500">#${i+1}</div><div class="col-span-1 font-medium truncate" title="${s}">${s}</div><div class="col-span-4 flex justify-end gap-4"><span class="font-bold text-indigo-600">${last!=null?last.toFixed(2)+'%':'-'}</span><div class="hidden md:flex gap-1">${vals.slice(-5).map(v=>`<span class="text-xs px-1.5 rounded ${v>0?'bg-green-100 text-green-700':'bg-gray-100 text-gray-400'}">${v!=null?v.toFixed(1):'-'}</span>`).join('')}</div></div>`;
-                container.appendChild(row);
             });
         }
     </script>
