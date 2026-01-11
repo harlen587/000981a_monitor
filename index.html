@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>00981A每日持股追蹤工具 v3.3 (雙圖表版)</title>
+    <title>00981A每日持股追蹤工具</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -25,13 +25,13 @@
     <div class="min-h-screen flex flex-col items-center justify-start p-4 md:p-8">
         
         <!-- Tab Navigation -->
-        <div class="w-full max-w-4xl mb-6 bg-white rounded-xl shadow-sm p-1 flex">
+        <div class="w-full max-w-6xl mb-6 bg-white rounded-xl shadow-sm p-1 flex">
             <button onclick="switchTab('merger')" id="tab-merger" class="flex-1 py-3 px-6 rounded-lg font-bold text-sm transition-all duration-200 bg-blue-100 text-blue-700">1. 資料匯整</button>
-            <button onclick="switchTab('viewer')" id="tab-viewer" class="flex-1 py-3 px-6 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:bg-gray-50">2. 權重分佈 & 分析</button>
+            <button onclick="switchTab('viewer')" id="tab-viewer" class="flex-1 py-3 px-6 rounded-lg font-bold text-sm transition-all duration-200 text-gray-500 hover:bg-gray-50">2. 權重分佈 & 趨勢分析</button>
         </div>
 
         <!-- APP CONTAINER -->
-        <div class="bg-white rounded-xl shadow-lg w-full max-w-4xl p-8 space-y-8 min-h-[600px]">
+        <div class="bg-white rounded-xl shadow-lg w-full max-w-6xl p-8 space-y-8 min-h-[600px]">
             
             <!-- SECTION 1: MERGER TOOL -->
             <div id="section-merger" class="space-y-8">
@@ -95,9 +95,9 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
                         </svg>
-                        持股權重分佈
+                        持股權重分佈與趨勢
                     </h1>
-                    <p class="text-gray-500 mt-2">顯示最新日期的前 25 大持股權重分佈</p>
+                    <p class="text-gray-500 mt-2">顯示最新日期的前 25 大持股權重分佈與歷史走勢</p>
                 </div>
                 <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
                     <label class="block text-sm font-medium text-indigo-900 mb-2">請上傳 Monitor.xlsx 檔案</label>
@@ -105,21 +105,60 @@
                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer border rounded-lg p-2 bg-white border-indigo-200">
                 </div>
                 
-                <!-- Chart Container (Stacked Vertical) -->
+                <!-- Chart Area -->
                 <div class="space-y-8">
-                    <!-- Chart 1: Horizontal Bar -->
-                    <div class="bg-white border rounded-xl p-4 shadow-sm">
-                        <h3 class="font-bold text-gray-700 mb-4 pl-2 border-l-4 border-indigo-500">權重排行 (Top 25)</h3>
-                        <div class="relative h-[600px] w-full">
-                            <canvas id="barChart"></canvas>
+                    
+                    <!-- Row 1: Distribution Charts (Side by Side) -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Chart 1: Horizontal Bar -->
+                        <div class="bg-white border rounded-xl p-4 shadow-sm h-[500px] flex flex-col">
+                            <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                                <h3 class="font-bold text-gray-700 pl-2 border-l-4 border-indigo-500">權重排行 (Top 25)</h3>
+                                <!-- 新增：分佈圖表控制按鈕 -->
+                                <div class="flex gap-2">
+                                    <button onclick="toggleDistributionAll(false)" class="inline-flex items-center px-2 py-1 text-xs font-bold rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors duration-200 shadow-sm">
+                                        全部取消
+                                    </button>
+                                    <button onclick="toggleDistributionAll(true)" class="inline-flex items-center px-2 py-1 text-xs font-bold rounded border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200 shadow-sm">
+                                        全部選取
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="relative flex-1 w-full min-h-0">
+                                <canvas id="barChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 2: Pie Chart -->
+                        <div class="bg-white border rounded-xl p-4 shadow-sm h-[500px] flex flex-col">
+                            <h3 class="font-bold text-gray-700 mb-4 pl-2 border-l-4 border-pink-500">權重比例分佈</h3>
+                            <div class="relative flex-1 w-full min-h-0 flex justify-center">
+                                <canvas id="pieChart"></canvas>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Chart 2: Pie Chart -->
+                    <!-- Row 2: Trend Chart -->
                     <div class="bg-white border rounded-xl p-4 shadow-sm">
-                        <h3 class="font-bold text-gray-700 mb-4 pl-2 border-l-4 border-pink-500">權重比例分佈</h3>
-                        <div class="relative h-[400px] w-full flex justify-center">
-                            <canvas id="pieChart"></canvas>
+                        <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                            <h3 class="font-bold text-gray-700 pl-2 border-l-4 border-blue-500">歷史權重走勢 (Trend)</h3>
+                            <div class="flex gap-2">
+                                <button onclick="toggleTrendAll(false)" class="inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors duration-200 shadow-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    全部取消
+                                </button>
+                                <button onclick="toggleTrendAll(true)" class="inline-flex items-center px-3 py-1.5 text-xs font-bold rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors duration-200 shadow-sm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                    </svg>
+                                    全部選取
+                                </button>
+                            </div>
+                        </div>
+                        <div class="relative h-[400px] w-full">
+                            <canvas id="trendChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -164,6 +203,7 @@
         // Chart Instances
         let barChartInstance = null;
         let pieChartInstance = null;
+        let trendChartInstance = null; 
 
         // --- Table Data & Sorting State ---
         let tableData = [];
@@ -307,7 +347,7 @@
                 
                 let startIdx = (latestDataRaw.length > 0 && typeof latestDataRaw[0][1] === 'string' && latestDataRaw[0][1].includes('名稱')) ? 1 : 0;
                 let targetStocks = [];
-                // 調整：只取前 25 檔 (原本是 + 50)
+                // 取前 25 檔
                 for (let i = startIdx; i < startIdx + 25; i++) {
                     if (latestDataRaw[i] && latestDataRaw[i][1]) targetStocks.push(latestDataRaw[i][1]);
                 }
@@ -334,7 +374,9 @@
                     return data[data.length - 1] || 0;
                 });
                 
-                drawCharts(targetStocks, latestWeights);
+                // Draw 3 Charts
+                drawDistributionCharts(targetStocks, latestWeights);
+                drawTrendChart(sheets, targetStocks, datasets);
                 
                 // --- Build Table Data ---
                 tableData = targetStocks.map((s, i) => {
@@ -486,8 +528,8 @@
             });
         }
 
-        // --- NEW: Draw 2 Charts (Bar & Pie) ---
-        function drawCharts(stocks, weights) {
+        // --- DRAW FUNCTION: Distribution Charts (Bar & Pie) ---
+        function drawDistributionCharts(stocks, weights) {
             const barCtx = document.getElementById('barChart').getContext('2d');
             const pieCtx = document.getElementById('pieChart').getContext('2d');
             
@@ -558,6 +600,65 @@
                         }
                     }
                 }
+            });
+        }
+
+        // --- DRAW FUNCTION: Trend Chart (Line) ---
+        function drawTrendChart(labels, stocks, dataMap) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (trendChartInstance) trendChartInstance.destroy();
+            const colors = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#881337', '#1e293b', '#64748b'];
+            
+            trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: stocks.map((s, i) => ({
+                        label: s, 
+                        data: dataMap[s], 
+                        borderColor: colors[i % colors.length], 
+                        backgroundColor: colors[i % colors.length], 
+                        borderWidth: 2, 
+                        tension: 0.1, 
+                        pointRadius: 3, 
+                        spanGaps: true
+                    }))
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    interaction: { mode: 'index', intersect: false }, 
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 10 } } } 
+                }
+            });
+        }
+
+        // --- Toggle Functions ---
+
+        // 1. For Line Chart (Dataset Visibility)
+        function toggleTrendAll(isVisible) {
+            if (!trendChartInstance) return;
+            trendChartInstance.data.datasets.forEach((ds, i) => {
+                trendChartInstance.setDatasetVisibility(i, isVisible);
+            });
+            trendChartInstance.update();
+        }
+
+        // 2. For Distribution Charts (Data Visibility)
+        function toggleDistributionAll(isVisible) {
+            const charts = [barChartInstance, pieChartInstance];
+            charts.forEach(chart => {
+                if (!chart) return;
+                // Chart.js 3+ data visibility
+                const count = chart.data.labels.length;
+                for (let i = 0; i < count; i++) {
+                    // Check current state, only toggle if needed
+                    // getDataVisibility returns true by default
+                    if (chart.getDataVisibility(i) !== isVisible) {
+                        chart.toggleDataVisibility(i);
+                    }
+                }
+                chart.update();
             });
         }
     </script>
